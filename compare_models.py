@@ -4,6 +4,7 @@ import torch
 import tensorflow as tf
 from pathlib import Path
 import sys
+# np.set_printoptions(threshold = 100000)
 
 input = torch.tensor([[-0.7437, -1.2760, -0.1883, -0.1868,  0.1205, -0.4901, -0.8610,  0.8493,
          -0.4686,  1.2384, -0.4359, -1.9974,  0.2344,  0.3692,  0.0768,  0.7325,
@@ -47,14 +48,14 @@ def compare_outputs(torch_model_path, tf_model_path):
     out_tf = test_tf(tf_model_path, tf_input)
     path = Path(torch_model_path)
     model_name = path.name[:path.name.find('.')]
-    out_file  = open(f'{path.parent}/{model_name}_output.txt', 'w')
+    out_file = open(f'{path.parent}/{model_name}_output.txt', 'w')
     out_file.write(f'Output Pytorch: {out_torch}')
     out_file.write(f'Output Tensorflow: {out_tf}')
     out_file.write(f'Input variable: {torch_input}')
-    bool_arr = np.isclose(out_torch.numpy(), out_tf['26'].numpy(), rtol=1e-05, atol=1e-08, equal_nan=False)
+    bool_arr = np.isclose(out_torch.numpy(), out_tf['26'].numpy(), rtol=1e-04, atol=1e-08, equal_nan=False)
     out_file.write(f'Comparison array: {bool_arr}')
     out_file.close()
-    print(bool_arr)
+    print(np.all(bool_arr))
 
 def check_paths(torch_path, tf_path):
     torch_model = Path(torch_path)
