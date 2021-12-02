@@ -2,11 +2,12 @@ from generators import GeneratorNet, GeneratorNetCifar10
 import numpy as np
 import torch
 import tensorflow as tf
+import onnxruntime as ort
 from pathlib import Path
 import sys
-# np.set_printoptions(threshold = 100000)
+np.set_printoptions(threshold = 100000)
 
-input = torch.tensor([[-0.7437, -1.2760, -0.1883, -0.1868,  0.1205, -0.4901, -0.8610,  0.8493,
+mnist_input = torch.tensor([[-0.7437, -1.2760, -0.1883, -0.1868,  0.1205, -0.4901, -0.8610,  0.8493,
          -0.4686,  1.2384, -0.4359, -1.9974,  0.2344,  0.3692,  0.0768,  0.7325,
           0.8549, -1.0880,  0.1584,  0.6923,  0.5956,  2.1244, -0.2668, -1.9012,
          -1.2560,  0.0883, -0.8099, -1.1211, -1.9375,  0.1645,  0.7323,  0.4977,
@@ -30,6 +31,8 @@ def test_torch(model_path, input):
         state_dict = torch.load(model_path, map_location='cpu')
         trained_model.load_state_dict(state_dict)
         out = trained_model(input)
+        out = out.numpy()
+        print(type(out))
         print(out) #Just for testing
         return out
 
@@ -38,24 +41,56 @@ def test_tf(model_path, input):
     loaded_model = tf.saved_model.load(model_path) 
     infer = loaded_model.signatures['serving_default']
     out = infer(input)
+    out = list(out.values())[0]
+    out = out.numpy()
+    print(type(out))
     print(out)  #Just for testing
     return out
 
-def compare_outputs(torch_model_path, tf_model_path):
-    torch_input = input #torch.randn(1,100,1,1) if 'cifar' in torch_model_path else torch.randn(1,100)
-    tf_input = tf.constant(torch_input)
-    out_torch = test_torch(torch_model_path, torch_input)
-    out_tf = test_tf(tf_model_path, tf_input)
-    path = Path(torch_model_path)
+def test_onnx(model_path, input):
+    session = ort.InferenceSession(model_path, None)
+    input_name = session.get_inputs()[0].name
+    output_name = session.get_outputs()[0].name 
+    result = session.run([output_name], {input_name: input})
+    out = result[0]
+    print(type(out))
+    print(out)
+    return out
+
+def compare_write_output(model_path, out_1, out_2, input):
+    path = Path(model_path)
     model_name = path.name[:path.name.find('.')]
     out_file = open(f'{path.parent}/{model_name}_output.txt', 'w')
-    out_file.write(f'Output Pytorch: {out_torch}')
-    out_file.write(f'Output Tensorflow: {out_tf}')
-    out_file.write(f'Input variable: {torch_input}')
-    bool_arr = np.isclose(out_torch.numpy(), out_tf['26'].numpy(), rtol=1e-04, atol=1e-08, equal_nan=False)
+    out_file.write(f'Output first model: {out_1}')
+    out_file.write(f'Output second model: {out_2}')
+    out_file.write(f'Input variable: {input}')
+    bool_arr = np.isclose(out_1, out_2, rtol=1e-03, atol=1e-08, equal_nan=False)
     out_file.write(f'Comparison array: {bool_arr}')
     out_file.close()
     print(np.all(bool_arr))
+
+def compare_torch_tf(torch_model_path, tf_model_path):
+    torch_input = torch.randn(1, 100, 1, 1) if 'cifar' in torch_model_path else torch.randn(1,100)
+    tf_input = tf.constant(torch_input)
+    out_torch = test_torch(torch_model_path, torch_input)
+    out_tf = test_tf(tf_model_path, tf_input)
+    compare_write_output(torch_model_path, out_torch.numpy(), out_tf.numpy(), torch_input)
+    
+
+def compare_torch_onnx(torch_model, onnx_model):
+    input = torch.randn(1, 100, 1, 1) if 'cifar' in torch_model else torch.randn(1,100)
+    out_torch = test_torch(torch_model, input)
+    out_onnx = test_onnx(onnx_model, input.numpy())
+    compare_write_output(torch_model, out_torch, out_onnx, input)
+
+def compare_onnx_tf(onnx_model, tf_model):
+    onnx_input = torch.randn(1, 100, 1, 1).numpy() if 'cifar' in onnx_model else torch.randn(1, 100).numpy()
+    print(type(onnx_input[0][0][0][0]))
+    tf_input = tf.constant(onnx_input)
+    out_onnx = test_onnx(onnx_model, onnx_input)
+    out_tf = test_tf(tf_model, tf_input)
+    compare_write_output(onnx_model, out_onnx, out_tf, onnx_input)
+    
 
 def check_paths(torch_path, tf_path):
     torch_model = Path(torch_path)
@@ -79,7 +114,7 @@ def check_paths(torch_path, tf_path):
 if __name__ == '__main__':
     if len(sys.argv) > 2:
         if check_paths(sys.argv[1], sys.argv[2]):
-            compare_outputs(sys.argv[1], sys.argv[2])
+            compare_torch_tf(sys.argv[1], sys.argv[2])
         else:
             print('You must pass as arguments:\nArgument 1: path to a pytorch model\nArgumennt 2: path to a tensorflow model')
     else:

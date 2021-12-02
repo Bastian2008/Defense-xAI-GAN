@@ -4,6 +4,7 @@ import onnx
 from onnx_tf.backend import prepare
 from generators import GeneratorNet, GeneratorNetCifar10
 from pathlib import Path
+import sys
 
 def convert_filepath(file_name, ending):
     if(file_name != ''):
@@ -24,17 +25,25 @@ def torchToTf(file_path):
     model_onnx = onnx.load(onnx_filepath)
     tf_rep = prepare(model_onnx)
     tf_filepath = convert_filepath(file_path, '.pb')
-    print(type(tf_rep)) #Only for testing
     tf_rep.export_graph(tf_filepath)
 
-def get_filepaths():
-    directory = Path('.')
+def get_filepaths(dir_path = '.'):
+    directory = Path(dir_path)
     filepaths = []
     for item in directory.iterdir():
         if item.is_file() and str(item).endswith('.pt'):
             filepaths.append(str(item))
     return filepaths
 
-def convert_models(filepaths):
+def convert_all_models(dir_path = '.'):
+    filepaths = get_filepaths(dir_path)
     for file in filepaths:
         torchToTf(file)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1:
+        convert_all_models(sys.argv[1])
+    else:
+        print('models in current directory converted')
+        convert_all_models()
