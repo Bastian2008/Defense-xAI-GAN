@@ -32,8 +32,6 @@ def test_torch(model_path, input):
         trained_model.load_state_dict(state_dict)
         out = trained_model(input)
         out = out.numpy()
-        print(type(out))
-        print(out) #Just for testing
         return out
 
 def test_tf(model_path, input):
@@ -43,8 +41,6 @@ def test_tf(model_path, input):
     out = infer(input)
     out = list(out.values())[0]
     out = out.numpy()
-    print(type(out))
-    print(out)  #Just for testing
     return out
 
 def test_onnx(model_path, input):
@@ -53,19 +49,17 @@ def test_onnx(model_path, input):
     output_name = session.get_outputs()[0].name 
     result = session.run([output_name], {input_name: input})
     out = result[0]
-    print(type(out))
-    print(out)
     return out
 
 def compare_write_output(model_path, out_1, out_2, input):
     path = Path(model_path)
     model_name = path.name[:path.name.find('.')]
     out_file = open(f'{path.parent}/{model_name}_output.txt', 'w')
-    out_file.write(f'Output first model: {out_1}')
-    out_file.write(f'Output second model: {out_2}')
-    out_file.write(f'Input variable: {input}')
+    out_file.write(f'Output first model: {out_1}\n\n')
+    out_file.write(f'Output second model: {out_2}\n\n')
+    out_file.write(f'Input variable: {input}\n\n')
     bool_arr = np.isclose(out_1, out_2, rtol=1e-03, atol=1e-08, equal_nan=False)
-    out_file.write(f'Comparison array: {bool_arr}')
+    out_file.write(f'Comparison array: {bool_arr}\n')
     out_file.close()
     print(np.all(bool_arr))
 
@@ -74,7 +68,7 @@ def compare_torch_tf(torch_model_path, tf_model_path):
     tf_input = tf.constant(torch_input)
     out_torch = test_torch(torch_model_path, torch_input)
     out_tf = test_tf(tf_model_path, tf_input)
-    compare_write_output(torch_model_path, out_torch.numpy(), out_tf.numpy(), torch_input)
+    compare_write_output(torch_model_path, out_torch, out_tf, torch_input)
     
 
 def compare_torch_onnx(torch_model, onnx_model):
@@ -85,7 +79,6 @@ def compare_torch_onnx(torch_model, onnx_model):
 
 def compare_onnx_tf(onnx_model, tf_model):
     onnx_input = torch.randn(1, 100, 1, 1).numpy() if 'cifar' in onnx_model else torch.randn(1, 100).numpy()
-    print(type(onnx_input[0][0][0][0]))
     tf_input = tf.constant(onnx_input)
     out_onnx = test_onnx(onnx_model, onnx_input)
     out_tf = test_tf(tf_model, tf_input)
